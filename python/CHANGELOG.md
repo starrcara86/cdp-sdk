@@ -2,6 +2,27 @@
 
 <!-- towncrier release notes start -->
 
+## [1.35.0] - 2025-12-08
+
+### Features
+
+- Added optional EIP-8021 dataSuffix to send_user_operation ([#506](https://github.com/coinbase/cdp-sdk/pull/506))
+
+
+## [1.34.0] - 2025-12-04
+
+### Features
+
+- Added createEndUser method to EndUser client ([#499](https://github.com/coinbase/cdp-sdk/pull/499))
+
+
+## [1.33.3] - 2025-11-21
+
+### Bugfixes
+
+- Replaced error-tracking wrappers with a WeakSet-based recursion guard to prevent memory leaks from strong references to wrapped instances. ([#494](https://github.com/coinbase/cdp-sdk/pull/494))
+
+
 ## [1.33.2] - 2025-11-03
 
 - Removed default audience claim from JWT generation

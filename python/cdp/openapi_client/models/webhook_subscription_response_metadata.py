@@ -18,28 +18,17 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from typing_extensions import Annotated
-from cdp.openapi_client.models.x402_verify_invalid_reason import X402VerifyInvalidReason
 from typing import Optional, Set
 from typing_extensions import Self
 
-class VerifyX402Payment200Response(BaseModel):
+class WebhookSubscriptionResponseMetadata(BaseModel):
     """
-    VerifyX402Payment200Response
+    Additional metadata for the subscription.
     """ # noqa: E501
-    is_valid: StrictBool = Field(description="Indicates whether the payment is valid.", alias="isValid")
-    invalid_reason: Optional[X402VerifyInvalidReason] = Field(default=None, alias="invalidReason")
-    payer: Annotated[str, Field(strict=True)] = Field(description="The onchain address of the client that is paying for the resource.  For EVM networks, the payer will be a 0x-prefixed, checksum EVM address.  For Solana-based networks, the payer will be a base58-encoded Solana address.")
-    __properties: ClassVar[List[str]] = ["isValid", "invalidReason", "payer"]
-
-    @field_validator('payer')
-    def payer_validate_regular_expression(cls, value):
-        """Validates the regular expression"""
-        if not re.match(r"^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$", value):
-            raise ValueError(r"must validate the regular expression /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/")
-        return value
+    secret: Optional[StrictStr] = Field(default=None, description="Use the root-level `secret` field instead. Maintained for backward compatibility only.")
+    __properties: ClassVar[List[str]] = ["secret"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -59,7 +48,7 @@ class VerifyX402Payment200Response(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of VerifyX402Payment200Response from a JSON string"""
+        """Create an instance of WebhookSubscriptionResponseMetadata from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -84,7 +73,7 @@ class VerifyX402Payment200Response(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of VerifyX402Payment200Response from a dict"""
+        """Create an instance of WebhookSubscriptionResponseMetadata from a dict"""
         if obj is None:
             return None
 
@@ -92,9 +81,7 @@ class VerifyX402Payment200Response(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "isValid": obj.get("isValid"),
-            "invalidReason": obj.get("invalidReason"),
-            "payer": obj.get("payer")
+            "secret": obj.get("secret")
         })
         return _obj
 

@@ -14,8 +14,10 @@ import {
   TransactionReceipt,
   createPublicClient,
   formatEther,
+  hashMessage,
   http,
   parseEther,
+  recoverAddress,
   serializeTransaction,
   type Address,
   type Chain,
@@ -206,6 +208,27 @@ describe("CDP Client E2E Tests", () => {
     expect(account).toBeDefined();
     expect(account.address).toBe(serverAccount.address);
     expect(account.name).toBe(randomName);
+  });
+
+  it("should create an end user with EVM smart account and Solana account", async () => {
+    const randomEmail = `test-${Date.now()}@example.com`;
+
+    const endUser = await cdp.endUser.createEndUser({
+      authenticationMethods: [{ type: "email", email: randomEmail }],
+      evmAccount: { createSmartAccount: true },
+      solanaAccount: { createSmartAccount: false },
+    });
+
+    expect(endUser).toBeDefined();
+    expect(endUser.userId).toBeDefined();
+    expect(endUser.authenticationMethods).toHaveLength(1);
+    expect(endUser.authenticationMethods[0].type).toBe("email");
+    expect(endUser.evmAccounts).toHaveLength(1);
+    expect(endUser.evmSmartAccounts).toHaveLength(1);
+    expect(endUser.solanaAccounts).toHaveLength(1);
+    expect(endUser.createdAt).toBeDefined();
+
+    logger.log("Created end user:", safeStringify(endUser));
   });
 
   it("should import an evm server account from a private key", async () => {
@@ -678,6 +701,49 @@ describe("CDP Client E2E Tests", () => {
     }
   });
 
+  it("should send user operation with dataSuffix (EIP-8021 transaction attribution)", async () => {
+    const privateKey = generatePrivateKey();
+    const owner = privateKeyToAccount(privateKey);
+
+    logger.log("calling cdp.evm.createSmartAccount");
+    const smartAccount = await cdp.evm.createSmartAccount({ owner });
+    expect(smartAccount).toBeDefined();
+    logger.log("Smart Account created. Response:", safeStringify(smartAccount));
+
+    try {
+      logger.log("calling cdp.evm.sendUserOperation with dataSuffix");
+      const userOperation = await cdp.evm.sendUserOperation({
+        smartAccount: smartAccount,
+        network: "base-sepolia",
+        calls: [
+          {
+            to: "0x0000000000000000000000000000000000000000",
+            data: "0x",
+            value: BigInt(0),
+          },
+        ],
+        dataSuffix: "0xdddddddd62617365617070070080218021802180218021802180218021",
+      });
+
+      expect(userOperation).toBeDefined();
+      expect(userOperation.userOpHash).toBeDefined();
+      logger.log("User Operation with dataSuffix sent. Response:", safeStringify(userOperation));
+
+      logger.log("calling cdp.evm.waitForUserOperation");
+      const userOpResult = await cdp.evm.waitForUserOperation({
+        smartAccountAddress: smartAccount.address,
+        userOpHash: userOperation.userOpHash,
+      });
+
+      expect(userOpResult).toBeDefined();
+      expect(userOpResult.status).toBe("complete");
+      logger.log("User Operation completed. Response:", safeStringify(userOpResult));
+    } catch (error) {
+      console.log("Error: ", error);
+      console.log("Ignoring for now...");
+    }
+  });
+
   it("should send a transaction", async () => {
     async function test() {
       await ensureSufficientEthBalance(cdp, testAccount);
@@ -874,6 +940,91 @@ describe("CDP Client E2E Tests", () => {
     expect(secondPage.balances[0].amount).toBeDefined();
     expect(secondPage.balances[0].amount.amount).toBeDefined();
     expect(secondPage.balances[0].amount.decimals).toBeDefined();
+  });
+
+  describe("eoa sign message", () => {
+    it("should handle plain string message", async () => {
+      const message = "Hello World";
+      const signature = await testAccount.signMessage({ message });
+      const expectedHash = hashMessage(message);
+      const recoveredAddress = await recoverAddress({
+        hash: expectedHash,
+        signature: signature as Hex,
+      });
+
+      expect(signature).toBeDefined();
+      expect(recoveredAddress).toBe(testAccount.address);
+    });
+
+    it("should handle hex-encoded string message", async () => {
+      const hexMessage = "0x48656c6c6f20576f726c64" as Hex; // "Hello World" in hex
+      const signature = await testAccount.signMessage({ message: { raw: hexMessage } });
+      const expectedHash = hashMessage({ raw: hexMessage });
+      const recoveredAddress = await recoverAddress({
+        hash: expectedHash,
+        signature: signature as Hex,
+      });
+      expect(signature).toBeDefined();
+      expect(recoveredAddress).toBe(testAccount.address);
+    });
+
+    it("should handle { raw: hex } format with UTF-8 text", async () => {
+      const hexMessage = "0x48656c6c6f20576f726c64" as Hex; // "Hello World" in hex
+      const signature = await testAccount.signMessage({ message: { raw: hexMessage } });
+      const expectedHash = hashMessage({ raw: hexMessage });
+      const recoveredAddress = await recoverAddress({
+        hash: expectedHash,
+        signature: signature as Hex,
+      });
+      expect(signature).toBeDefined();
+      expect(recoveredAddress).toBe(testAccount.address);
+    });
+
+    it("should handle { raw: hex } binary data (32-byte hash)", async () => {
+      const binaryDataHex =
+        "0x69e540c217c8af830886c5a81e5c617f71fa7ab913488233406b9bfbc12b31be" as Hex;
+      const signature = await testAccount.signMessage({
+        message: { raw: binaryDataHex },
+      });
+      const expectedHash = hashMessage({ raw: binaryDataHex });
+      const recoveredAddress = await recoverAddress({
+        hash: expectedHash,
+        signature: signature as Hex,
+      });
+
+      expect(signature).toBeDefined();
+      expect(recoveredAddress).toBe(testAccount.address);
+    });
+
+    it("should handle pre-hashed message", async () => {
+      const originalMessage = "Hello";
+      const preHashedMessage = hashMessage(originalMessage);
+      const signature = await testAccount.signMessage({
+        message: { raw: preHashedMessage },
+      });
+      // Note: This will have EIP-191 applied twice
+      const expectedHash = hashMessage({ raw: preHashedMessage });
+      const recoveredAddress = await recoverAddress({
+        hash: expectedHash,
+        signature: signature as Hex,
+      });
+
+      expect(signature).toBeDefined();
+      expect(recoveredAddress).toBe(testAccount.address);
+    });
+
+    it("should handle object format with Uint8Array", async () => {
+      const byteArray = new Uint8Array([72, 101, 108, 108, 111]); // "Hello" in bytes
+      const signature = await testAccount.signMessage({ message: { raw: byteArray } });
+      const expectedHash = hashMessage({ raw: byteArray });
+      const recoveredAddress = await recoverAddress({
+        hash: expectedHash,
+        signature: signature as Hex,
+      });
+
+      expect(signature).toBeDefined();
+      expect(recoveredAddress).toBe(testAccount.address);
+    });
   });
 
   describe("get or create account", () => {

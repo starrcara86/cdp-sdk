@@ -1,5 +1,29 @@
 # CDP SDK Changelog
 
+## 1.40.1
+
+### Patch Changes
+
+- [#510](https://github.com/coinbase/cdp-sdk/pull/510) [`ae7ddf4`](https://github.com/coinbase/cdp-sdk/commit/ae7ddf4137dab319cc4e80ed832477951c13d25c) Thanks [@0xRAG](https://github.com/0xRAG)! - Fixed bug in EOA signMessage method
+
+## 1.40.0
+
+### Minor Changes
+
+- [#506](https://github.com/coinbase/cdp-sdk/pull/506) [`56af347`](https://github.com/coinbase/cdp-sdk/commit/56af347209a82cbdee10c09cd77403250da19d8f) Thanks [@milan-cb](https://github.com/milan-cb)! - Added optional EIP-8021 dataSuffix to prepareUserOperation and sendUserOperation
+
+## 1.39.0
+
+### Minor Changes
+
+- [#499](https://github.com/coinbase/cdp-sdk/pull/499) [`af70f6e`](https://github.com/coinbase/cdp-sdk/commit/af70f6e64ca6fd3b5349db4e4295c5f726fa9c2d) Thanks [@marcin-cb](https://github.com/marcin-cb)! - Added createEndUser method to EndUser client
+
+## 1.38.6
+
+### Patch Changes
+
+- [#492](https://github.com/coinbase/cdp-sdk/pull/492) [`60e6a1a`](https://github.com/coinbase/cdp-sdk/commit/60e6a1a5ae6da6b704c33fd7f72ee334108deb76) Thanks [@0xRAG](https://github.com/0xRAG)! - Replaced error-tracking wrappers with a WeakSet-based recursion guard to prevent memory leaks from strong references to wrapped instances.
+
 ## 1.38.5
 
 ### Patch Changes

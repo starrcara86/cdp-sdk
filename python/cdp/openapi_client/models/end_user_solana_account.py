@@ -18,18 +18,27 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Any, ClassVar, Dict, List
-from cdp.openapi_client.models.x402_supported_payment_kind import X402SupportedPaymentKind
+from typing_extensions import Annotated
 from typing import Optional, Set
 from typing_extensions import Self
 
-class SupportedX402PaymentKinds200Response(BaseModel):
+class EndUserSolanaAccount(BaseModel):
     """
-    SupportedX402PaymentKinds200Response
+    Information about a Solana account associated with an end user.
     """ # noqa: E501
-    kinds: List[X402SupportedPaymentKind] = Field(description="The list of supported payment kinds.")
-    __properties: ClassVar[List[str]] = ["kinds"]
+    address: Annotated[str, Field(strict=True)] = Field(description="The base58 encoded address of the Solana account.")
+    created_at: datetime = Field(description="The date and time when the account was created, in ISO 8601 format.", alias="createdAt")
+    __properties: ClassVar[List[str]] = ["address", "createdAt"]
+
+    @field_validator('address')
+    def address_validate_regular_expression(cls, value):
+        """Validates the regular expression"""
+        if not re.match(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", value):
+            raise ValueError(r"must validate the regular expression /^[1-9A-HJ-NP-Za-km-z]{32,44}$/")
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -49,7 +58,7 @@ class SupportedX402PaymentKinds200Response(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of SupportedX402PaymentKinds200Response from a JSON string"""
+        """Create an instance of EndUserSolanaAccount from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -70,18 +79,11 @@ class SupportedX402PaymentKinds200Response(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of each item in kinds (list)
-        _items = []
-        if self.kinds:
-            for _item_kinds in self.kinds:
-                if _item_kinds:
-                    _items.append(_item_kinds.to_dict())
-            _dict['kinds'] = _items
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of SupportedX402PaymentKinds200Response from a dict"""
+        """Create an instance of EndUserSolanaAccount from a dict"""
         if obj is None:
             return None
 
@@ -89,7 +91,8 @@ class SupportedX402PaymentKinds200Response(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "kinds": [X402SupportedPaymentKind.from_dict(_item) for _item in obj["kinds"]] if obj.get("kinds") is not None else None
+            "address": obj.get("address"),
+            "createdAt": obj.get("createdAt")
         })
         return _obj
 

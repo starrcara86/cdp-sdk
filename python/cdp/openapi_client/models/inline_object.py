@@ -18,36 +18,27 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
-from cdp.openapi_client.models.x402_settle_error_reason import X402SettleErrorReason
+from cdp.openapi_client.models.x402_verify_invalid_reason import X402VerifyInvalidReason
 from typing import Optional, Set
 from typing_extensions import Self
 
-class SettleX402Payment200Response(BaseModel):
+class InlineObject(BaseModel):
     """
-    SettleX402Payment200Response
+    InlineObject
     """ # noqa: E501
-    success: StrictBool = Field(description="Indicates whether the payment settlement is successful.")
-    error_reason: Optional[X402SettleErrorReason] = Field(default=None, alias="errorReason")
+    is_valid: StrictBool = Field(description="Indicates whether the payment is valid.", alias="isValid")
+    invalid_reason: Optional[X402VerifyInvalidReason] = Field(default=None, alias="invalidReason")
     payer: Annotated[str, Field(strict=True)] = Field(description="The onchain address of the client that is paying for the resource.  For EVM networks, the payer will be a 0x-prefixed, checksum EVM address.  For Solana-based networks, the payer will be a base58-encoded Solana address.")
-    transaction: Annotated[str, Field(strict=True)] = Field(description="The transaction of the settlement. For EVM networks, the transaction will be a 0x-prefixed, EVM transaction hash. For Solana-based networks, the transaction will be a base58-encoded Solana signature.")
-    network: StrictStr = Field(description="The network where the settlement occurred.")
-    __properties: ClassVar[List[str]] = ["success", "errorReason", "payer", "transaction", "network"]
+    __properties: ClassVar[List[str]] = ["isValid", "invalidReason", "payer"]
 
     @field_validator('payer')
     def payer_validate_regular_expression(cls, value):
         """Validates the regular expression"""
-        if not re.match(r"^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$", value):
-            raise ValueError(r"must validate the regular expression /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/")
-        return value
-
-    @field_validator('transaction')
-    def transaction_validate_regular_expression(cls, value):
-        """Validates the regular expression"""
-        if not re.match(r"^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$", value):
-            raise ValueError(r"must validate the regular expression /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/")
+        if not re.match(r"^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$", value):
+            raise ValueError(r"must validate the regular expression /^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/")
         return value
 
     model_config = ConfigDict(
@@ -68,7 +59,7 @@ class SettleX402Payment200Response(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of SettleX402Payment200Response from a JSON string"""
+        """Create an instance of InlineObject from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -93,7 +84,7 @@ class SettleX402Payment200Response(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of SettleX402Payment200Response from a dict"""
+        """Create an instance of InlineObject from a dict"""
         if obj is None:
             return None
 
@@ -101,11 +92,9 @@ class SettleX402Payment200Response(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "success": obj.get("success"),
-            "errorReason": obj.get("errorReason"),
-            "payer": obj.get("payer"),
-            "transaction": obj.get("transaction"),
-            "network": obj.get("network")
+            "isValid": obj.get("isValid"),
+            "invalidReason": obj.get("invalidReason"),
+            "payer": obj.get("payer")
         })
         return _obj
 

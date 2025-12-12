@@ -74,17 +74,86 @@ export interface DeveloperJWTAuthentication {
 }
 
 /**
+ * The type of OAuth2 provider.
+ */
+export type OAuth2ProviderType = (typeof OAuth2ProviderType)[keyof typeof OAuth2ProviderType];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const OAuth2ProviderType = {
+  google: "google",
+  apple: "apple",
+  x: "x",
+} as const;
+
+/**
+ * Information about an end user who authenticates using a third-party provider.
+ */
+export interface OAuth2Authentication {
+  type: OAuth2ProviderType;
+  /** The unique identifier for the end user that is captured in the `sub` claim of the JWT. */
+  sub: string;
+  /** The email address of the end user contained within the user's ID token, if available from third-party OAuth2 provider's token exchange. */
+  email?: string;
+  /** The full name of the end user if available from third-party OAuth2 provider's token exchange. */
+  name?: string;
+  /** The username of the end user if available from third-party OAuth2 provider's token exchange. */
+  username?: string;
+}
+
+/**
  * Information about how the end user is authenticated.
  */
 export type AuthenticationMethod =
   | EmailAuthentication
   | SmsAuthentication
-  | DeveloperJWTAuthentication;
+  | DeveloperJWTAuthentication
+  | OAuth2Authentication;
 
 /**
  * The list of valid authentication methods linked to the end user.
  */
 export type AuthenticationMethods = AuthenticationMethod[];
+
+/**
+ * Information about an EVM account associated with an end user.
+ */
+export interface EndUserEvmAccount {
+  /**
+   * The address of the EVM account.
+   * @pattern ^0x[0-9a-fA-F]{40}$
+   */
+  address: string;
+  /** The date and time when the account was created, in ISO 8601 format. */
+  createdAt: string;
+}
+
+/**
+ * Information about an EVM smart account associated with an end user.
+ */
+export interface EndUserEvmSmartAccount {
+  /**
+   * The address of the EVM smart account.
+   * @pattern ^0x[0-9a-fA-F]{40}$
+   */
+  address: string;
+  /** The addresses of the EVM EOA accounts that own this smart account. Smart accounts can have multiple owners, such as when spend permissions are enabled. */
+  ownerAddresses: string[];
+  /** The date and time when the account was created, in ISO 8601 format. */
+  createdAt: string;
+}
+
+/**
+ * Information about a Solana account associated with an end user.
+ */
+export interface EndUserSolanaAccount {
+  /**
+   * The base58 encoded address of the Solana account.
+   * @pattern ^[1-9A-HJ-NP-Za-km-z]{32,44}$
+   */
+  address: string;
+  /** The date and time when the account was created, in ISO 8601 format. */
+  createdAt: string;
+}
 
 /**
  * Information about the end user.
@@ -96,12 +165,29 @@ export interface EndUser {
    */
   userId: string;
   authenticationMethods: AuthenticationMethods;
-  /** The list of EVM accounts associated with the end user. Currently, only one EVM account is supported per end user. */
+  /**
+   * **DEPRECATED**: Use `evmAccountObjects` instead for richer account information. The list of EVM account addresses associated with the end user. End users can have up to 10 EVM accounts.
+   * @deprecated
+   */
   evmAccounts: string[];
-  /** The list of EVM smart accounts associated with the end user. Currently, only one EVM smart account is supported per end user. */
+  /** The list of EVM accounts associated with the end user. End users can have up to 10 EVM accounts. */
+  evmAccountObjects: EndUserEvmAccount[];
+  /**
+   * **DEPRECATED**: Use `evmSmartAccountObjects` instead for richer account information including owner relationships. The list of EVM smart account addresses associated with the end user. Each EVM EOA can own one smart account.
+   * @deprecated
+   */
   evmSmartAccounts: string[];
-  /** The list of Solana accounts associated with the end user. Currently, only one Solana account is supported per end user. */
+  /** The list of EVM smart accounts associated with the end user. Each EVM EOA can own one smart account. */
+  evmSmartAccountObjects: EndUserEvmSmartAccount[];
+  /**
+   * **DEPRECATED**: Use `solanaAccountObjects` instead for richer account information. The list of Solana account addresses associated with the end user. End users can have up to 10 Solana accounts.
+   * @deprecated
+   */
   solanaAccounts: string[];
+  /** The list of Solana accounts associated with the end user. End users can have up to 10 Solana accounts. */
+  solanaAccountObjects: EndUserSolanaAccount[];
+  /** The date and time when the end user was created, in ISO 8601 format. */
+  createdAt: string;
 }
 
 export interface ListResponse {
@@ -146,7 +232,23 @@ export const ErrorType = {
   recipient_allowlist_violation: "recipient_allowlist_violation",
   recipient_allowlist_pending: "recipient_allowlist_pending",
   travel_rules_recipient_violation: "travel_rules_recipient_violation",
+  transfer_amount_out_of_bounds: "transfer_amount_out_of_bounds",
+  transfer_recipient_address_invalid: "transfer_recipient_address_invalid",
+  transfer_quote_expired: "transfer_quote_expired",
+  mfa_already_enrolled: "mfa_already_enrolled",
+  mfa_invalid_code: "mfa_invalid_code",
+  mfa_flow_expired: "mfa_flow_expired",
+  mfa_required: "mfa_required",
+  mfa_not_enrolled: "mfa_not_enrolled",
 } as const;
+
+/**
+ * A valid HTTP or HTTPS URL.
+ * @minLength 11
+ * @maxLength 2048
+ * @pattern ^https?://.*$
+ */
+export type Url = string;
 
 /**
  * An error response including the code for the type of error and a human-readable message describing the error.
@@ -158,7 +260,7 @@ export interface Error {
   /** A unique identifier for the request that generated the error. This can be used to help debug issues with the API. */
   correlationId?: string;
   /** A link to the corresponding error documentation. */
-  errorLink?: string;
+  errorLink?: Url;
 }
 
 export interface EvmAccount {
@@ -406,7 +508,7 @@ export interface CreateSpendPermissionRequest {
   /** Arbitrary data to include in the permission. */
   extraData?: string;
   /** The paymaster URL of the spend permission. */
-  paymasterUrl?: string;
+  paymasterUrl?: Url;
 }
 
 /**
@@ -463,7 +565,7 @@ export interface RevokeSpendPermissionRequest {
   /** The hash of the spend permission to revoke. */
   permissionHash: string;
   /** The paymaster URL of the spend permission. */
-  paymasterUrl?: string;
+  paymasterUrl?: Url;
 }
 
 /**
@@ -2305,15 +2407,35 @@ export interface SolanaTokenBalance {
 }
 
 /**
+ * Enables control over how often queries need to be fully re-executed on the backing store.
+This can be useful in scenarios where API calls might be made frequently, API latency is critical, and some freshness lag (ex: 750ms, 2s, 5s) is tolerable.
+By default, each query result is returned from cache so long as the result is from an identical query and less than 500ms old. This freshness tolerance can be modified upwards, to a maximum of 900000ms (i.e. 900s, 15m).
+
+ */
+export type OnchainDataQueryCache = {
+  /**
+   * The maximum tolerable staleness of the query result cache in milliseconds. If a previous execution result of an identical query is older than this age, the query will be re-executed. If the data is less than this age, the result will be returned from cache.
+   * @minimum 500
+   * @maximum 900000
+   */
+  maxAgeMs?: number;
+};
+
+/**
  * Request to execute a SQL query against indexed blockchain data.
  */
 export interface OnchainDataQuery {
   /**
    * SQL query to execute against the indexed blockchain data.
    * @minLength 1
-   * @maxLength 50000
+   * @maxLength 100000
    */
   sql: string;
+  /** Enables control over how often queries need to be fully re-executed on the backing store.
+This can be useful in scenarios where API calls might be made frequently, API latency is critical, and some freshness lag (ex: 750ms, 2s, 5s) is tolerable.
+By default, each query result is returned from cache so long as the result is from an identical query and less than 500ms old. This freshness tolerance can be modified upwards, to a maximum of 900000ms (i.e. 900s, 15m).
+ */
+  cache?: OnchainDataQueryCache;
 }
 
 /**
@@ -2371,8 +2493,10 @@ export type OnchainDataResultSchema = {
  * Metadata about query execution.
  */
 export type OnchainDataResultMetadata = {
-  /** Whether the result was served from cache. */
+  /** Whether the result was served from the query result cache. */
   cached?: boolean;
+  /** When the query result was executed against the backing store in RFC 3339 format. */
+  executionTimestamp?: string;
   /** Query execution time in milliseconds. */
   executionTimeMs?: number;
   /** Number of rows returned. */
@@ -2408,6 +2532,230 @@ export interface AccountTokenAddressesResponse {
 }
 
 /**
+ * Additional headers to include in webhook requests.
+ */
+export type WebhookTargetHeaders = { [key: string]: string };
+
+/**
+ * Target configuration for webhook delivery.
+Specifies the destination URL and any custom headers to include in webhook requests.
+
+ */
+export interface WebhookTarget {
+  /** The webhook URL to deliver events to. */
+  url: Url;
+  /** Additional headers to include in webhook requests. */
+  headers?: WebhookTargetHeaders;
+}
+
+/**
+ * Additional metadata for the subscription.
+ */
+export type WebhookSubscriptionResponseMetadata = {
+  /**
+   * Use the root-level `secret` field instead. Maintained for backward compatibility only.
+   * @deprecated
+   */
+  secret?: string;
+};
+
+/**
+ * Multi-label filters using total overlap logic. Total overlap means the subscription only triggers when events contain ALL these key-value pairs.
+Present when subscription uses multi-label format.
+
+ */
+export type WebhookSubscriptionResponseLabels = { [key: string]: string };
+
+/**
+ * Response containing webhook subscription details.
+ */
+export interface WebhookSubscriptionResponse {
+  /** When the subscription was created. */
+  createdAt: string;
+  /** Description of the webhook subscription. */
+  description?: string;
+  /** Types of events to subscribe to. Event types follow a three-part dot-separated format: 
+service.resource.verb (e.g., "onchain.activity.detected", "wallet.activity.detected", "onramp.transaction.created").
+ */
+  eventTypes: string[];
+  /** Whether the subscription is enabled. */
+  isEnabled: boolean;
+  /** Additional metadata for the subscription. */
+  metadata?: WebhookSubscriptionResponseMetadata;
+  /** Secret for webhook signature validation. */
+  secret: string;
+  /** Unique identifier for the subscription. */
+  subscriptionId: string;
+  target: WebhookTarget;
+  /** Label key for filtering events. Present when subscription uses traditional single-label format.
+   */
+  labelKey?: string;
+  /** Label value for filtering events. Present when subscription uses traditional single-label format.
+   */
+  labelValue?: string;
+  /** Multi-label filters using total overlap logic. Total overlap means the subscription only triggers when events contain ALL these key-value pairs.
+Present when subscription uses multi-label format.
+ */
+  labels?: WebhookSubscriptionResponseLabels;
+}
+
+/**
+ * Response containing a list of webhook subscriptions.
+ */
+export type WebhookSubscriptionListResponseAllOf = {
+  /** The list of webhook subscriptions. */
+  subscriptions: WebhookSubscriptionResponse[];
+};
+
+export type WebhookSubscriptionListResponse = WebhookSubscriptionListResponseAllOf & ListResponse;
+
+/**
+ * Additional metadata for the subscription.
+ */
+export type WebhookSubscriptionRequestMetadata = { [key: string]: unknown };
+
+/**
+ * Multi-label filters using total overlap logic. Total overlap means the subscription will only trigger when 
+an event contains ALL the key-value pairs specified here. Additional labels on 
+the event are allowed and will not prevent matching.
+NOTE: Use either labels OR (labelKey + labelValue), not both.
+
+ */
+export type WebhookSubscriptionRequestLabels = { [key: string]: string };
+
+/**
+ * Request to create a new webhook subscription with support for both traditional single-label 
+and multi-label filtering formats.
+
+ */
+export type WebhookSubscriptionRequest =
+  | (unknown & {
+      /** Description of the webhook subscription. */
+      description?: string;
+      /** Types of events to subscribe to. Event types follow a three-part dot-separated format: 
+service.resource.verb (e.g., "onchain.activity.detected", "wallet.activity.detected", "onramp.transaction.created").
+The subscription will only receive events matching these types AND the label filter(s).
+ */
+      eventTypes?: string[];
+      /** Whether the subscription is enabled. */
+      isEnabled?: boolean;
+      target?: WebhookTarget;
+      /** Additional metadata for the subscription. */
+      metadata?: WebhookSubscriptionRequestMetadata;
+      /** Label key for filtering events. Each subscription filters on exactly one (labelKey, labelValue) pair 
+in addition to the event types. Only events matching both the event types AND this label filter will be delivered.
+NOTE: Use either (labelKey + labelValue) OR labels, not both.
+ */
+      labelKey?: string;
+      /** Label value for filtering events. Must correspond to the labelKey (e.g., contract address for contract_address key).
+Only events with this exact label value will be delivered.
+NOTE: Use either (labelKey + labelValue) OR labels, not both.
+ */
+      labelValue?: string;
+      /** Multi-label filters using total overlap logic. Total overlap means the subscription will only trigger when 
+an event contains ALL the key-value pairs specified here. Additional labels on 
+the event are allowed and will not prevent matching.
+NOTE: Use either labels OR (labelKey + labelValue), not both.
+ */
+      labels?: WebhookSubscriptionRequestLabels;
+    })
+  | (unknown & {
+      /** Description of the webhook subscription. */
+      description?: string;
+      /** Types of events to subscribe to. Event types follow a three-part dot-separated format: 
+service.resource.verb (e.g., "onchain.activity.detected", "wallet.activity.detected", "onramp.transaction.created").
+The subscription will only receive events matching these types AND the label filter(s).
+ */
+      eventTypes?: string[];
+      /** Whether the subscription is enabled. */
+      isEnabled?: boolean;
+      target?: WebhookTarget;
+      /** Additional metadata for the subscription. */
+      metadata?: WebhookSubscriptionRequestMetadata;
+      /** Label key for filtering events. Each subscription filters on exactly one (labelKey, labelValue) pair 
+in addition to the event types. Only events matching both the event types AND this label filter will be delivered.
+NOTE: Use either (labelKey + labelValue) OR labels, not both.
+ */
+      labelKey?: string;
+      /** Label value for filtering events. Must correspond to the labelKey (e.g., contract address for contract_address key).
+Only events with this exact label value will be delivered.
+NOTE: Use either (labelKey + labelValue) OR labels, not both.
+ */
+      labelValue?: string;
+      /** Multi-label filters using total overlap logic. Total overlap means the subscription will only trigger when 
+an event contains ALL the key-value pairs specified here. Additional labels on 
+the event are allowed and will not prevent matching.
+NOTE: Use either labels OR (labelKey + labelValue), not both.
+ */
+      labels?: WebhookSubscriptionRequestLabels;
+    });
+
+/**
+ * Additional metadata for the subscription.
+ */
+export type WebhookSubscriptionUpdateRequestMetadata = { [key: string]: unknown };
+
+/**
+ * Multi-label filters using total overlap logic. Total overlap means the subscription will only trigger when 
+an event contains ALL the key-value pairs specified here. Use either labels OR (labelKey + labelValue), not both.
+
+ */
+export type WebhookSubscriptionUpdateRequestLabels = { [key: string]: string };
+
+/**
+ * Request to update an existing webhook subscription. The update format must match 
+the original subscription format (traditional or multi-label).
+
+ */
+export type WebhookSubscriptionUpdateRequest =
+  | (unknown & {
+      /** Description of the webhook subscription. */
+      description?: string;
+      /** Types of events to subscribe to. Event types follow a three-part dot-separated format: 
+service.resource.verb (e.g., "onchain.activity.detected", "wallet.activity.detected", "onramp.transaction.created").
+ */
+      eventTypes?: string[];
+      /** Whether the subscription is enabled. */
+      isEnabled?: boolean;
+      target?: WebhookTarget;
+      /** Additional metadata for the subscription. */
+      metadata?: WebhookSubscriptionUpdateRequestMetadata;
+      /** Label key for filtering events. Use either (labelKey + labelValue) OR labels, not both.
+       */
+      labelKey?: string;
+      /** Label value for filtering events. Use either (labelKey + labelValue) OR labels, not both.
+       */
+      labelValue?: string;
+      /** Multi-label filters using total overlap logic. Total overlap means the subscription will only trigger when 
+an event contains ALL the key-value pairs specified here. Use either labels OR (labelKey + labelValue), not both.
+ */
+      labels?: WebhookSubscriptionUpdateRequestLabels;
+    })
+  | (unknown & {
+      /** Description of the webhook subscription. */
+      description?: string;
+      /** Types of events to subscribe to. Event types follow a three-part dot-separated format: 
+service.resource.verb (e.g., "onchain.activity.detected", "wallet.activity.detected", "onramp.transaction.created").
+ */
+      eventTypes?: string[];
+      /** Whether the subscription is enabled. */
+      isEnabled?: boolean;
+      target?: WebhookTarget;
+      /** Additional metadata for the subscription. */
+      metadata?: WebhookSubscriptionUpdateRequestMetadata;
+      /** Label key for filtering events. Use either (labelKey + labelValue) OR labels, not both.
+       */
+      labelKey?: string;
+      /** Label value for filtering events. Use either (labelKey + labelValue) OR labels, not both.
+       */
+      labelValue?: string;
+      /** Multi-label filters using total overlap logic. Total overlap means the subscription will only trigger when 
+an event contains ALL the key-value pairs specified here. Use either labels OR (labelKey + labelValue), not both.
+ */
+      labels?: WebhookSubscriptionUpdateRequestLabels;
+    });
+
+/**
  * The version of the x402 protocol.
  */
 export type X402Version = (typeof X402Version)[keyof typeof X402Version];
@@ -2415,6 +2763,7 @@ export type X402Version = (typeof X402Version)[keyof typeof X402Version];
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const X402Version = {
   NUMBER_1: 1,
+  NUMBER_2: 2,
 } as const;
 
 /**
@@ -2462,22 +2811,22 @@ export interface X402ExactSolanaPayload {
 /**
  * The scheme of the payment protocol to use. Currently, the only supported scheme is `exact`.
  */
-export type X402PaymentPayloadScheme =
-  (typeof X402PaymentPayloadScheme)[keyof typeof X402PaymentPayloadScheme];
+export type X402V1PaymentPayloadScheme =
+  (typeof X402V1PaymentPayloadScheme)[keyof typeof X402V1PaymentPayloadScheme];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const X402PaymentPayloadScheme = {
+export const X402V1PaymentPayloadScheme = {
   exact: "exact",
 } as const;
 
 /**
  * The network of the blockchain to send payment on.
  */
-export type X402PaymentPayloadNetwork =
-  (typeof X402PaymentPayloadNetwork)[keyof typeof X402PaymentPayloadNetwork];
+export type X402V1PaymentPayloadNetwork =
+  (typeof X402V1PaymentPayloadNetwork)[keyof typeof X402V1PaymentPayloadNetwork];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const X402PaymentPayloadNetwork = {
+export const X402V1PaymentPayloadNetwork = {
   "base-sepolia": "base-sepolia",
   base: "base",
   "solana-devnet": "solana-devnet",
@@ -2487,40 +2836,138 @@ export const X402PaymentPayloadNetwork = {
 /**
  * The payload of the payment depending on the x402Version, scheme, and network.
  */
-export type X402PaymentPayloadPayload = X402ExactEvmPayload | X402ExactSolanaPayload;
+export type X402V1PaymentPayloadPayload = X402ExactEvmPayload | X402ExactSolanaPayload;
 
 /**
  * The x402 protocol payment payload that the client attaches to x402-paid API requests to the resource server in the X-PAYMENT header.
  */
-export interface X402PaymentPayload {
+export interface X402V1PaymentPayload {
   x402Version: X402Version;
   /** The scheme of the payment protocol to use. Currently, the only supported scheme is `exact`. */
-  scheme: X402PaymentPayloadScheme;
+  scheme: X402V1PaymentPayloadScheme;
   /** The network of the blockchain to send payment on. */
-  network: X402PaymentPayloadNetwork;
+  network: X402V1PaymentPayloadNetwork;
   /** The payload of the payment depending on the x402Version, scheme, and network. */
-  payload: X402PaymentPayloadPayload;
+  payload: X402V1PaymentPayloadPayload;
 }
 
 /**
  * The scheme of the payment protocol to use. Currently, the only supported scheme is `exact`.
  */
-export type X402PaymentRequirementsScheme =
-  (typeof X402PaymentRequirementsScheme)[keyof typeof X402PaymentRequirementsScheme];
+export type X402V2PaymentRequirementsScheme =
+  (typeof X402V2PaymentRequirementsScheme)[keyof typeof X402V2PaymentRequirementsScheme];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const X402PaymentRequirementsScheme = {
+export const X402V2PaymentRequirementsScheme = {
+  exact: "exact",
+} as const;
+
+/**
+ * The optional additional scheme-specific payment info.
+ */
+export type X402V2PaymentRequirementsExtra = { [key: string]: unknown };
+
+/**
+ * The x402 protocol payment requirements that the resource server expects the client's payment payload to meet.
+ */
+export interface X402V2PaymentRequirements {
+  /** The scheme of the payment protocol to use. Currently, the only supported scheme is `exact`. */
+  scheme: X402V2PaymentRequirementsScheme;
+  /** The network of the blockchain to send payment on in caip2 format. */
+  network: string;
+  /**
+   * The asset to pay with.
+
+For EVM networks, the asset will be a 0x-prefixed, checksum EVM address.
+
+For Solana-based networks, the asset will be a base58-encoded Solana address.
+   * @pattern ^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$
+   */
+  asset: string;
+  /** The amount to pay for the resource in atomic units of the payment asset. */
+  amount: string;
+  /**
+   * The destination to pay value to.
+
+For EVM networks, payTo will be a 0x-prefixed, checksum EVM address.
+
+For Solana-based networks, payTo will be a base58-encoded Solana address.
+   * @pattern ^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$
+   */
+  payTo: string;
+  /** The maximum time in seconds for the resource server to respond. */
+  maxTimeoutSeconds: number;
+  /** The optional additional scheme-specific payment info. */
+  extra?: X402V2PaymentRequirementsExtra;
+}
+
+/**
+ * A valid MIME type (media type) as defined in RFC 6838.
+ * @minLength 3
+ * @maxLength 255
+ * @pattern ^[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*\/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*$
+ */
+export type MimeType = string;
+
+/**
+ * Describes the resource being accessed in x402 protocol.
+ */
+export interface X402ResourceInfo {
+  /** The URL of the resource. */
+  url: Url;
+  /** The description of the resource. */
+  description?: string;
+  /** The MIME type of the resource response. */
+  mimeType?: MimeType;
+}
+
+/**
+ * The payload of the payment depending on the x402Version, scheme, and network.
+ */
+export type X402V2PaymentPayloadPayload = X402ExactEvmPayload | X402ExactSolanaPayload;
+
+/**
+ * Optional protocol extensions.
+ */
+export type X402V2PaymentPayloadExtensions = { [key: string]: unknown };
+
+/**
+ * The x402 protocol payment payload that the client attaches to x402-paid API requests to the resource server in the X-PAYMENT header.
+ */
+export interface X402V2PaymentPayload {
+  x402Version: X402Version;
+  /** The payload of the payment depending on the x402Version, scheme, and network. */
+  payload: X402V2PaymentPayloadPayload;
+  accepted: X402V2PaymentRequirements;
+  resource?: X402ResourceInfo;
+  /** Optional protocol extensions. */
+  extensions?: X402V2PaymentPayloadExtensions;
+}
+
+/**
+ * The x402 protocol payment payload that the client attaches to x402-paid API requests to the resource server in the X-PAYMENT header.
+ */
+export type X402PaymentPayload = X402V1PaymentPayload | X402V2PaymentPayload;
+
+/**
+ * The scheme of the payment protocol to use. Currently, the only supported scheme is `exact`.
+ */
+export type X402V1PaymentRequirementsScheme =
+  (typeof X402V1PaymentRequirementsScheme)[keyof typeof X402V1PaymentRequirementsScheme];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const X402V1PaymentRequirementsScheme = {
   exact: "exact",
 } as const;
 
 /**
  * The network of the blockchain to send payment on.
  */
-export type X402PaymentRequirementsNetwork =
-  (typeof X402PaymentRequirementsNetwork)[keyof typeof X402PaymentRequirementsNetwork];
+export type X402V1PaymentRequirementsNetwork =
+  (typeof X402V1PaymentRequirementsNetwork)[keyof typeof X402V1PaymentRequirementsNetwork];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const X402PaymentRequirementsNetwork = {
+export const X402V1PaymentRequirementsNetwork = {
   "base-sepolia": "base-sepolia",
   base: "base",
   "solana-devnet": "solana-devnet",
@@ -2530,38 +2977,38 @@ export const X402PaymentRequirementsNetwork = {
 /**
  * The optional JSON schema describing the resource output.
  */
-export type X402PaymentRequirementsOutputSchema = { [key: string]: unknown };
+export type X402V1PaymentRequirementsOutputSchema = { [key: string]: unknown };
 
 /**
  * The optional additional scheme-specific payment info.
  */
-export type X402PaymentRequirementsExtra = { [key: string]: unknown };
+export type X402V1PaymentRequirementsExtra = { [key: string]: unknown };
 
 /**
  * The x402 protocol payment requirements that the resource server expects the client's payment payload to meet.
  */
-export interface X402PaymentRequirements {
+export interface X402V1PaymentRequirements {
   /** The scheme of the payment protocol to use. Currently, the only supported scheme is `exact`. */
-  scheme: X402PaymentRequirementsScheme;
+  scheme: X402V1PaymentRequirementsScheme;
   /** The network of the blockchain to send payment on. */
-  network: X402PaymentRequirementsNetwork;
+  network: X402V1PaymentRequirementsNetwork;
   /** The maximum amount required to pay for the resource in atomic units of the payment asset. */
   maxAmountRequired: string;
   /** The URL of the resource to pay for. */
-  resource: string;
+  resource: Url;
   /** The description of the resource. */
   description: string;
   /** The MIME type of the resource response. */
-  mimeType: string;
+  mimeType: MimeType;
   /** The optional JSON schema describing the resource output. */
-  outputSchema?: X402PaymentRequirementsOutputSchema;
+  outputSchema?: X402V1PaymentRequirementsOutputSchema;
   /**
    * The destination to pay value to.
 
 For EVM networks, payTo will be a 0x-prefixed, checksum EVM address.
 
 For Solana-based networks, payTo will be a base58-encoded Solana address.
-   * @pattern ^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$
+   * @pattern ^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$
    */
   payTo: string;
   /** The maximum time in seconds for the resource server to respond. */
@@ -2572,12 +3019,17 @@ For Solana-based networks, payTo will be a base58-encoded Solana address.
 For EVM networks, the asset will be a 0x-prefixed, checksum EVM address.
 
 For Solana-based networks, the asset will be a base58-encoded Solana address.
-   * @pattern ^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$
+   * @pattern ^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$
    */
   asset: string;
   /** The optional additional scheme-specific payment info. */
-  extra?: X402PaymentRequirementsExtra;
+  extra?: X402V1PaymentRequirementsExtra;
 }
+
+/**
+ * The x402 protocol payment requirements that the resource server expects the client's payment payload to meet.
+ */
+export type X402PaymentRequirements = X402V1PaymentRequirements | X402V2PaymentRequirements;
 
 /**
  * The reason the payment is invalid on the x402 protocol.
@@ -2594,6 +3046,8 @@ export const X402VerifyInvalidReason = {
   invalid_payment_requirements: "invalid_payment_requirements",
   invalid_payload: "invalid_payload",
   invalid_exact_evm_payload_authorization_value: "invalid_exact_evm_payload_authorization_value",
+  invalid_exact_evm_payload_authorization_value_too_low:
+    "invalid_exact_evm_payload_authorization_value_too_low",
   invalid_exact_evm_payload_authorization_valid_after:
     "invalid_exact_evm_payload_authorization_valid_after",
   invalid_exact_evm_payload_authorization_valid_before:
@@ -2641,6 +3095,10 @@ export const X402VerifyInvalidReason = {
     "invalid_exact_svm_payload_transaction_simulation_failed",
   invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata:
     "invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata",
+  invalid_exact_svm_payload_transaction_fee_payer_included_in_instruction_accounts:
+    "invalid_exact_svm_payload_transaction_fee_payer_included_in_instruction_accounts",
+  invalid_exact_svm_payload_transaction_fee_payer_transferring_funds:
+    "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
 } as const;
 
 /**
@@ -2818,8 +3276,8 @@ export const OnrampPaymentLinkType = {
 Please refer to the [Onramp docs](https://docs.cdp.coinbase.com/onramp-&-offramp/onramp-apis/onramp-overview) for details on how to integrate with the different payment link types.
  */
 export interface OnrampPaymentLink {
-  /** The URL to the hosted widget the user should be redirected to. For certain payment link types you can append your  own redirect_url query parameter to this URL to ensure the user is redirected back to your app after the widget completes. */
-  url: string;
+  /** The URL to the hosted widget the user should be redirected to. For certain payment link types you can append your own redirect_url query parameter to this URL to ensure the user is redirected back to your app after the widget completes. */
+  url: Url;
   paymentLinkType: OnrampPaymentLinkType;
 }
 
@@ -2840,11 +3298,19 @@ export const OnrampQuotePaymentMethodTypeId = {
 } as const;
 
 /**
+ * A valid URI.
+ * @minLength 5
+ * @maxLength 2048
+ * @pattern ^.*://.*$
+ */
+export type Uri = string;
+
+/**
  * An onramp session containing a ready-to-use onramp URL.
  */
 export interface OnrampSession {
   /** Ready-to-use onramp URL. */
-  onrampUrl: string;
+  onrampUrl: Url;
 }
 
 /**
@@ -2924,7 +3390,7 @@ export type X402VerifyResponseResponse = {
 For EVM networks, the payer will be a 0x-prefixed, checksum EVM address.
 
 For Solana-based networks, the payer will be a base58-encoded Solana address.
-   * @pattern ^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$
+   * @pattern ^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$
    */
   payer: string;
 };
@@ -2939,23 +3405,32 @@ export type X402SettleResponseResponse = {
 For EVM networks, the payer will be a 0x-prefixed, checksum EVM address.
 
 For Solana-based networks, the payer will be a base58-encoded Solana address.
-   * @pattern ^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$
+   * @pattern ^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$
    */
   payer: string;
   /**
    * The transaction of the settlement.
 For EVM networks, the transaction will be a 0x-prefixed, EVM transaction hash.
 For Solana-based networks, the transaction will be a base58-encoded Solana signature.
-   * @pattern ^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$
+   * @pattern ^(0x[a-fA-F0-9]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$
    */
   transaction: string;
   /** The network where the settlement occurred. */
   network: string;
 };
 
+/**
+ * A map of CAIP-2 network or protocol family patterns to their supported signer addresses.
+ */
+export type X402SupportedPaymentKindsResponseResponseSigners = { [key: string]: string[] };
+
 export type X402SupportedPaymentKindsResponseResponse = {
   /** The list of supported payment kinds. */
   kinds: X402SupportedPaymentKind[];
+  /** The list of supported x402 extensions. */
+  extensions: string[];
+  /** A map of CAIP-2 network or protocol family patterns to their supported signer addresses. */
+  signers: X402SupportedPaymentKindsResponseResponseSigners;
 };
 
 /**
@@ -2978,6 +3453,47 @@ Refer to our [Idempotency docs](https://docs.cdp.coinbase.com/api-reference/v2/i
 
  */
 export type IdempotencyKeyParameter = string;
+
+/**
+ * The number of resources to return per page.
+ */
+export type PageSizeParameter = number;
+
+/**
+ * The token for the next page of resources, if any.
+ */
+export type PageTokenParameter = string;
+
+/**
+ * Configuration for creating an EVM account for the end user.
+ */
+export type CreateEndUserBodyEvmAccount = {
+  /** If true, creates an EVM smart account and a default EVM EOA account as the owner. If false, only a EVM EOA account is created. */
+  createSmartAccount?: boolean;
+};
+
+/**
+ * Configuration for creating a Solana account for the end user.
+ */
+export type CreateEndUserBodySolanaAccount = {
+  /** Only false is a valid option since currently smart accounts on Solana are not supported. */
+  createSmartAccount?: boolean;
+};
+
+export type CreateEndUserBody = {
+  /**
+   * A stable, unique identifier for the end user. The `userId` must be unique across all end users in the developer's CDP Project. It must be between 1 and 100 characters long and can only contain alphanumeric characters and hyphens.
+
+If `userId` is not provided in the request, the server will generate a random UUID.
+   * @pattern ^[a-zA-Z0-9-]{1,100}$
+   */
+  userId?: string;
+  authenticationMethods: AuthenticationMethods;
+  /** Configuration for creating an EVM account for the end user. */
+  evmAccount?: CreateEndUserBodyEvmAccount;
+  /** Configuration for creating a Solana account for the end user. */
+  solanaAccount?: CreateEndUserBodySolanaAccount;
+};
 
 export type ListEndUsersParams = {
   /**
@@ -3019,13 +3535,13 @@ export type ValidateEndUserAccessTokenBody = {
 
 export type ListEvmAccountsParams = {
   /**
-   * The number of accounts to return per page.
+   * The number of resources to return per page.
    */
-  pageSize?: number;
+  pageSize?: PageSizeParameter;
   /**
-   * The token for the next page of accounts, if any.
+   * The token for the next page of resources, if any.
    */
-  pageToken?: string;
+  pageToken?: PageTokenParameter;
 };
 
 export type ListEvmAccounts200AllOf = {
@@ -3132,13 +3648,13 @@ export type SignEvmTypedData200 = {
 
 export type ListEvmSmartAccountsParams = {
   /**
-   * The number of accounts to return per page.
+   * The number of resources to return per page.
    */
-  pageSize?: number;
+  pageSize?: PageSizeParameter;
   /**
-   * The token for the next page of accounts, if any.
+   * The token for the next page of resources, if any.
    */
-  pageToken?: string;
+  pageToken?: PageTokenParameter;
 };
 
 export type ListEvmSmartAccounts200AllOf = {
@@ -3212,7 +3728,12 @@ export type PrepareUserOperationBody = {
   /** The list of calls to make from the Smart Account. */
   calls: EvmCall[];
   /** The URL of the paymaster to use for the user operation. */
-  paymasterUrl?: string;
+  paymasterUrl?: Url;
+  /**
+   * The EIP-8021 data suffix (hex-encoded) that enables transaction attribution for the user operation.
+   * @pattern ^0x[0-9a-fA-F]+$
+   */
+  dataSuffix?: string;
 };
 
 export type PrepareAndSendUserOperationBody = {
@@ -3220,7 +3741,7 @@ export type PrepareAndSendUserOperationBody = {
   /** The list of calls to make from the Smart Account. */
   calls: EvmCall[];
   /** The URL of the paymaster to use for the user operation. */
-  paymasterUrl?: string;
+  paymasterUrl?: Url;
 };
 
 export type SendUserOperationBody = {
@@ -3299,13 +3820,13 @@ export type CreateEvmSwapQuoteBody = {
 
 export type ListEvmTokenBalancesParams = {
   /**
-   * The number of balances to return per page.
+   * The number of resources to return per page.
    */
-  pageSize?: number;
+  pageSize?: PageSizeParameter;
   /**
-   * The token for the next page of balances. Will be empty if there are no more balances to fetch.
+   * The token for the next page of resources, if any.
    */
-  pageToken?: string;
+  pageToken?: PageTokenParameter;
 };
 
 export type ListEvmTokenBalances200AllOf = {
@@ -3362,13 +3883,13 @@ export type RequestEvmFaucet200 = {
 
 export type ListPoliciesParams = {
   /**
-   * The number of policies to return per page.
+   * The number of resources to return per page.
    */
-  pageSize?: number;
+  pageSize?: PageSizeParameter;
   /**
-   * The token for the next page of policies, if any.
+   * The token for the next page of resources, if any.
    */
-  pageToken?: string;
+  pageToken?: PageTokenParameter;
   /**
    * The scope of the policies to return. If `project`, the response will include exactly one policy, which is the project-level policy. If `account`, the response will include all account-level policies for the developer's CDP Project.
    */
@@ -3428,13 +3949,13 @@ Policy descriptions can consist of alphanumeric characters, spaces, commas, and 
 
 export type ListSolanaAccountsParams = {
   /**
-   * The number of accounts to return per page.
+   * The number of resources to return per page.
    */
-  pageSize?: number;
+  pageSize?: PageSizeParameter;
   /**
-   * The token for the next page of accounts, if any.
+   * The token for the next page of resources, if any.
    */
-  pageToken?: string;
+  pageToken?: PageTokenParameter;
 };
 
 export type ListSolanaAccounts200AllOf = {
@@ -3596,13 +4117,13 @@ export type ListSolanaTokenBalances200 = ListSolanaTokenBalances200AllOf & ListR
 
 export type ListDataTokenBalancesParams = {
   /**
-   * The number of balances to return per page.
+   * The number of resources to return per page.
    */
-  pageSize?: number;
+  pageSize?: PageSizeParameter;
   /**
-   * The token for the next page of balances. Will be empty if there are no more balances to fetch.
+   * The token for the next page of resources, if any.
    */
-  pageToken?: string;
+  pageToken?: PageTokenParameter;
 };
 
 export type ListDataTokenBalances200AllOf = {
@@ -3611,6 +4132,17 @@ export type ListDataTokenBalances200AllOf = {
 };
 
 export type ListDataTokenBalances200 = ListDataTokenBalances200AllOf & ListResponse;
+
+export type ListWebhookSubscriptionsParams = {
+  /**
+   * The number of subscriptions to return per page.
+   */
+  pageSize?: number;
+  /**
+   * The token for the next page of subscriptions, if any.
+   */
+  pageToken?: string;
+};
 
 export type VerifyX402PaymentBody = {
   x402Version: X402Version;
@@ -3695,10 +4227,14 @@ Use the [Onramp Buy Options API](https://docs.cdp.coinbase.com/api-reference/res
   country?: string;
   /** The ISO 3166-2 two letter state code (e.g. NY). Only required for US. */
   subdivision?: string;
-  /** URL to redirect the user to when they successfully complete a transaction. This URL will be  embedded in the returned onramp URL as a query parameter. */
-  redirectUrl?: string;
+  /** URI to redirect the user to when they successfully complete a transaction. This URI will be embedded in the returned onramp URI as a query parameter. */
+  redirectUrl?: Uri;
   /** The IP address of the end user requesting the onramp transaction. */
   clientIp?: string;
+  /** A unique string that represents the user in your app. This can be used to link individual transactions together so you can retrieve the transaction history for your users. Prefix this string with “sandbox-”  (e.g. "sandbox-user-1234") to perform a sandbox transaction which will allow you to test your integration  without any real transfer of funds.
+
+This value can be used with with [Onramp User Transactions API](https://docs.cdp.coinbase.com/api-reference/rest-api/onramp-offramp/get-onramp-transactions-by-id) to retrieve all transactions created by the user. */
+  partnerUserRef?: string;
 };
 
 export type CreateOnrampSession201 = {
